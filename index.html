@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Work+Sans:200,400&display=swap" rel="stylesheet" />
+
+    <title>Notes App</title>
+</head>
+
+<body class="box-border border-2 border-blue-500 bg-gray-100 h-screen py-14 flex justify-center items-center">
+    <main class="border-2 border-red-500 flex flex-wrap w-full h-full justify-center items-center m-20 gap-10">
+        <div class="w-96 container px-4 py-4 bg-white border-2 border-black h-full overflow-y-auto">
+            <span class="flex flex-row gap-16 items-center">
+                <h1 class="px-4 text-3xl font-bold">Notes</h1>
+                <div class="">
+                    <select id="filterCategory" class="w-20 h-8 bg-gray-100 border border-gray-300">
+                        <option value="all">All</option>
+                        <option value="family">Family</option>
+                        <option value="work">Work</option>
+                        <option value="hobbies">Hobbies</option>
+                    </select>
+                    <button onclick="filterNotes()"
+                        class="ml-2 px-2 py-1 bg-blue-500 text-white rounded">Filter</button>
+                </div>
+            </span>
+            <hr class="m-3 w-full">
+            <div class="flex flex-col gap-4" id="noteContainer"></div>
+        </div>
+        <div class="border-2 border-black w-80 h-full flex flex-col p-4 bg-white">
+            <textarea class="w-full p-4 bg-yellow-200 rounded mb-4" name="note" id="noteInput" cols="30"
+                rows="10"></textarea>
+            <p id="noteInput-error" class="hidden text-red-500">Please write a note!</p>
+            <label class="text-xl my-2" for="priority">Priority: <span class="text-l"
+                    id="priorityValue">3</span></label>
+            <input class="mb-4 mx-4" type="range" name="prioritySlider" id="prioritySlider" min="1" max="5" value="3">
+            <label class="text-xl my-2" for="category">Category:</label>
+            <select id="category" name="category" class="my-2 w-36 h-12 bg-gray-100 border border-gray-300">
+                <option value="" disabled selected>Select category</option>
+                <option value="family">Family</option>
+                <option value="work">Work</option>
+                <option value="hobbies">Hobbies</option>
+            </select>
+            <p id="category-error" class="hidden text-red-500">Please select a category!</p>
+
+            <button onclick="handleSubmit()" type="button"
+                class="my-2 px-4 py-2 w-28 flex justify-center self-end bg-blue-500 text-white rounded">Add
+                Note</button>
+        </div>
+    </main>
+    <script>
+        const noteContainer = document.getElementById("noteContainer"),
+            noteInput = document.getElementById("noteInput"),
+            priorityValue = document.getElementById("priorityValue"),
+            prioritySlider = document.getElementById("prioritySlider"),
+            category = document.getElementById("category"),
+            profile = "profile.webp";
+
+        // Load notes from local storage on page load
+        window.addEventListener('load', () => {
+            loadNotes();
+        });
+
+        // color & priorityValue according to slider
+        prioritySlider.addEventListener('input', () => {
+            updateNoteInputColor();
+        });
+
+        function updateNoteInputColor() {
+            const priority = prioritySlider.value;
+            priorityValue.textContent = priority;
+
+            if (priority == 1 || priority == 2) {
+                noteInput.classList.remove('bg-green-200', 'bg-yellow-200', 'bg-red-300');
+                noteInput.classList.add('bg-green-200');
+            } else if (priority == 5) {
+                noteInput.classList.remove('bg-green-200', 'bg-yellow-200', 'bg-red-300');
+                noteInput.classList.add('bg-red-300');
+            } else {
+                noteInput.classList.remove('bg-green-200', 'bg-red-300');
+                noteInput.classList.add('bg-yellow-200');
+            }
+        }
+
+        function handleSubmit() {
+            let allInputsValid = true;
+
+            if (!validateNoteInput()) {
+                allInputsValid = false;
+            }
+            if (!validateCategoryInput()) {
+                allInputsValid = false;
+            }
+
+            if (allInputsValid) {
+                const selectedNoteId = document.getElementById("selectedNoteId");
+                if (selectedNoteId) {
+                    // Editing existing note
+                    editNote(selectedNoteId);
+                } else {
+                    // Adding new note
+                    addNote();
+                }
+                saveNotesToLocalStorage();
+                clearForm();
+            }
+        }
+
+        function validateNoteInput() {
+            let noteInputError = document.querySelector('#noteInput-error');
+            if (!noteInput.value) {
+                noteInputError.classList.remove('hidden');
+                return false;
+            }
+            noteInputError.classList.add('hidden');
+            return true;
+        }
+
+        function validateCategoryInput() {
+            let categoryError = document.querySelector('#category-error');
+            if (!category.value) {
+                categoryError.classList.remove('hidden');
+                return false;
+            }
+            categoryError.classList.add('hidden');
+            return true;
+        }
+
+        function addNote() {
+            const noteCategory = category.value;
+            const priority = prioritySlider.value;
+            const noteText = noteInput.value;
+            const noteId = Date.now().toString();
+
+            // Create note element
+            const note = createNoteElement(noteId, noteCategory, priority, noteText);
+
+            // Append the note element to the note container
+            noteContainer.appendChild(note);
+
+            // Save the note to local storage
+            saveNotesToLocalStorage();
+        }
+
+        function editNote(noteId) {
+            // Remove existing note
+            deleteNoteFromLocalStorage(noteId);
+            const existingNote = document.getElementById(noteId);
+            if (existingNote) {
+                existingNote.remove();
+            }
+
+            // Add updated note
+            addNote();
+        }
+
+        function deleteNoteFromLocalStorage(noteId) {
+
+
+            const existingNotes = getNotesFromLocalStorage();
+            const updatedNotes = existingNotes.filter(note => note.id !== noteId);
+            localStorage.setItem('notes', JSON.stringify(updatedNotes));
+        }
+
+        function createNoteElement(noteId, noteCategory, priority, noteText) {
+            const note = document.createElement('div');
+            note.id = noteId;
+            note.dataset.category = noteCategory; // Set data attribute
+            note.classList.add('note', 'bg-white', 'border', 'border-gray-300', 'p-3', 'rounded', 'mb-4', `priority-${priority}`, `noteCategory-${noteCategory}`);
+            note.innerHTML = `
+                <div class="w-full h-12 flex flex-row gap-3 truncate">
+                <img self-center src="${profile}" alt="Profile Image" class="w-12 h-12 rounded-full">
+                <div class="flex flex-col w-full">
+                <div class="flex flex-row justify-between">
+                    <p class="font-bold">${noteCategory} (${priority})</p>
+                    <div class="flex justify-enditems-center gap-2 ">
+                        <button onclick="editNoteForm('${noteId}')" class="text-blue-500 cursor-pointer w-4"><img src="edit.png" alt="edit"></button>
+                        <button onclick="deleteNote('${noteId}')" class="text-red-500 cursor-pointer w-4"><img src="trash.png" alt="delete"></button>
+                        <button onclick="viewNote('${noteId}')" class="text-green-500 cursor-pointer w-5"><img src="eye.png" alt="view"></button>
+                        </div>
+                    </div>
+                        <p class="text-xs flex flex-col max-w-max">${noteText}</p>
+                        </div>
+                </div>
+            `;
+
+            if (priority == 1 || priority == 2) {
+                note.classList.add('bg-green-200');
+            } else if (priority == 5) {
+                note.classList.add('bg-red-300');
+            } else {
+                note.classList.add('bg-yellow-200');
+            }
+
+            return note;
+        }
+
+        function saveNotesToLocalStorage() {
+            const existingNotes = getNotesFromLocalStorage();
+            const noteCategory = category.value;
+            const priority = prioritySlider.value;
+            const noteText = noteInput.value;
+            const newNote = {
+                id: Date.now().toString(),
+                category: noteCategory,
+                priority: priority,
+                text: noteText,
+            };
+            existingNotes.push(newNote);
+            localStorage.setItem('notes', JSON.stringify(existingNotes));
+        }
+
+        function getNotesFromLocalStorage() {
+            return JSON.parse(localStorage.getItem('notes')) || [];
+        }
+
+        function loadNotes() {
+            const savedNotes = getNotesFromLocalStorage();
+            savedNotes.forEach((savedNote) => {
+                const note = createNoteElement(savedNote.id, savedNote.category, savedNote.priority, savedNote.text);
+                note.dataset.category = savedNote.category;
+                noteContainer.appendChild(note);
+            });
+        }
+
+        function clearForm() {
+            noteInput.value = "";
+            category.value = "";
+            prioritySlider.value = "3";
+            priorityValue.textContent = "3";
+            document.getElementById("selectedNoteId").value = "";
+            noteInput.classList.remove('bg-green-200', 'bg-yellow-200', 'bg-red-300');
+            noteInput.classList.add('bg-yellow-200');
+        }
+
+        function editNoteForm(noteId) {
+            // Retrieve existing note details
+            const existingNote = document.getElementById(noteId);
+            if (existingNote) {
+                const noteCategory = existingNote.classList.contains("noteCategory-family")
+                    ? "family"
+                    : existingNote.classList.contains("noteCategory-work")
+                        ? "work"
+                        : existingNote.classList.contains("noteCategory-hobbies")
+                            ? "hobbies"
+                            : "";
+
+                const priority = existingNote.classList.contains("priority-1")
+                    ? "1"
+                    : existingNote.classList.contains("priority-2")
+                        ? "2"
+                        : existingNote.classList.contains("priority-3")
+                            ? "3"
+                            : existingNote.classList.contains("priority-4")
+                                ? "4"
+                                : "5";
+
+                const noteText = existingNote.querySelector(".text-xs").textContent.trim();
+
+                // Set input fields with existing note details
+                noteInput.value = noteText;
+                category.value = noteCategory;
+                prioritySlider.value = priority;
+                priorityValue.textContent = priority;
+
+                deleteNote(existingNote);
+                existingNote.remove();
+                // Set the selected note ID in a hidden input field
+                document.getElementById("selectedNoteId").value = noteId;
+            }
+        }
+
+        function deleteNote(noteId) {
+            const note = document.getElementById(noteId);
+            if (note) {
+                note.remove();
+                deleteNoteFromLocalStorage(noteId);
+                clearForm();
+            }
+        }
+
+        function viewNote(noteId) {
+            const existingNote = document.getElementById(noteId);
+            if (existingNote) {
+                const noteCategory = existingNote.classList.contains("noteCategory-family")
+                    ? "Family"
+                    : existingNote.classList.contains("noteCategory-work")
+                        ? "Work"
+                        : existingNote.classList.contains("noteCategory-hobbies")
+                            ? "Hobbies"
+                            : "";
+
+                const priority = existingNote.classList.contains("priority-1")
+                    ? "1"
+                    : existingNote.classList.contains("priority-2")
+                        ? "2"
+                        : existingNote.classList.contains("priority-3")
+                            ? "3"
+                            : existingNote.classList.contains("priority-4")
+                                ? "4"
+                                : "5";
+
+                const noteText = existingNote.querySelector(".text-xs").textContent.trim();
+
+                alert(`Note Details:\nCategory: ${noteCategory}\nPriority: ${priority}\nText: ${noteText}`);
+            }
+        }
+        function filterNotes() {
+            const filterCategory = document.getElementById("filterCategory").value;
+            const notes = document.querySelectorAll('.note');
+
+            notes.forEach(note => {
+                const noteCategory = note.dataset.category;
+
+                if (filterCategory === "all" || filterCategory === noteCategory) {
+                    note.style.display = 'block';
+                } else {
+                    note.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
